@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Switch PoE Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+        }
+        .port {
+            width: 30px;
+            height: 30px;
+            margin: 5px;
+            display: inline-block;
+            background-color: #CECECE; /* Default gray */
+            border-radius: 5px;
+            cursor: pointer;
+            position: relative;
+        }
+        .port.orange {
+            background-color: #FF9337; /* Orange */
+        }
+        .port.blue {
+            background-color: #458AFF; /* Blue */
+        }
+        .port::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.1);
+            opacity: 0;
+            border-radius: 5px;
+            transition: opacity 0.1s ease;
+        }
+        .port:hover::before {
+            opacity: 1;
+        }
+        .port.disabled {
+            cursor: not-allowed;
+            opacity: 0.3;
+        }
+        #switch-ports {
+            display: flex;
+            flex-direction: column;
+            overflow-x: auto;
+            justify-content: center;
+            padding: 10px;
+            border: 1px solid #ddd;
+            background-color: #f9f9f9;
+        }
+        .row {
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+        }
+        .port-label {
+            font-size: 12px;
+            text-align: center;
+            color: #555;
+        }
+        .port-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        #total-power {
+            margin-top: 20px;
+        }
+        #error-message {
+            color: red;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        #color-legend {
+            display: flex;
+            justify-content: flex-end;
+            margin: 10px 0;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-left: 20px;
+            font-size: 14px;
+        }
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        .legend-gray {
+            background-color: #CECECE;
+        }
+        .legend-orange {
+            background-color: #FF9337;
+        }
+        .legend-blue {
+            background-color: #458AFF;
+        }
+        .note-text {
+            padding: 12px;
+            background-color: #E4E4E4;
+            color: #344054;
+            border-radius: 6px;
+        }
+        .note-text span:before {
+            content: "Note:";
+            color: #09C199;
+            padding-right: 5px;
+        }
+        .power-value {
+            padding: 6px 8px;
+            background-color: #E4E4E4;
+            border-radius: 5px;
+            font-weight: 600;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+    <h1>PoE Dashboard</h1>
+    <div class="note-text">
+        <span>Click on a port to change its power setting. Each port cycles through 0W, 15.4W, and 30W. The total PoE power budget is shared across all PoE-supported ports, and cannot exceed the system's maximum power limit.</span>
+    </div>
+    <div id="color-legend">
+        <div class="legend-item"><span class="legend-color legend-gray"></span>0W</div>
+        <div class="legend-item"><span class="legend-color legend-orange"></span>15.4W</div>
+        <div class="legend-item"><span class="legend-color legend-blue"></span>30W</div>
+    </div>
+    <div id="switch-ports">
+        <div class="row" id="even-row">
+            <!-- Even Ports -->
+        </div>
+        <div class="row" id="odd-row">
+            <!-- Odd Ports -->
+        </div>
+    </div>
+    <div id="total-power">PoE Power: 0 W / 400 W</div>
+    <div id="error-message"></div>
+
+    <script>
+        const MAX_POWER = 400;
+        const PORTS_COUNT = 48;
+        let totalPower = 0;
+
+        const evenRow = document.getElementById('even-row');
+        const oddRow = document.getElementById('odd-row');
+        const errorMessage = document.getElementById('error-message');
+
+        for (let i = 1; i <= PORTS_COUNT; i++) {
+            const portContainer = document.createElement('div');
+            const portLabel = document.createElement('div');
+            const port = document.createElement('div');
+            
+            portContainer.classList.add('port-container');
+            portLabel.classList.add('port-label');
+            portLabel.textContent = i;
+            port.classList.add('port');
+            port.dataset.index = i;
+            port.dataset.power = i <= 24 ? 15.4 : 0;
+
+            if (i <= 24) {
+                totalPower += 15.4;
+                updatePortColor(port, 15.4);
+            }
+
+            port.addEventListener('click', togglePortPower);
+
+            if (i % 2 === 0) {
+                portContainer.appendChild(portLabel);
+                portContainer.appendChild(port);
+                evenRow.appendChild(portContainer);
+            } else {
+                portContainer.appendChild(port);
+                portContainer.appendChild(portLabel);
+                oddRow.appendChild(portContainer);
+            }
+        }
+
+        document.getElementById('total-power').innerHTML = `PoE Power: <span class="power-value">${totalPower.toFixed(1)} W</span> / ${MAX_POWER} W`;
+
+        function togglePortPower(event) {
+            const port = event.target;
+            const index = parseInt(port.dataset.index);
+            const powerSequence = index <= 24 ? [15.4, 0, 30] : [0, 15.4, 30];
+            let currentPower = parseFloat(port.dataset.power);
+            let nextPower = powerSequence[(powerSequence.indexOf(currentPower) + 1) % powerSequence.length];
+
+            if (currentPower !== 0 && totalPower === MAX_POWER) {
+                nextPower = 0;
+            }
+
+            if (totalPower - currentPower + nextPower > MAX_POWER) {
+                errorMessage.textContent = 'Power limit reached. Adjust other ports to free up power.';
+                return;
+            }
+
+            errorMessage.textContent = '';
+            totalPower = totalPower - currentPower + nextPower;
+            port.dataset.power = nextPower;
+            updatePortColor(port, nextPower);
+
+            document.querySelectorAll('.port.disabled').forEach(disabledPort => {
+                const disabledPower = parseFloat(disabledPort.dataset.power);
+                if (totalPower - disabledPower + POWER_VALUES[(POWER_VALUES.indexOf(disabledPower) + 1) % POWER_VALUES.length] <= MAX_POWER) {
+                    disabledPort.classList.remove('disabled');
+                }
+            });
+
+            document.getElementById('total-power').innerHTML = `PoE Power: <span class="power-value">${totalPower.toFixed(1)} W</span> / ${MAX_POWER} W`;
+        }
+
+        function updatePortColor(port, power) {
+            port.classList.remove('orange', 'blue');
+            if (power === 15.4) port.classList.add('orange');
+            if (power === 30) port.classList.add('blue');
+        }
+    </script>
+</body>
+</html>
