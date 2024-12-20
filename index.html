@@ -167,6 +167,9 @@
             if (i <= 24) {
                 totalPower += 15.4;
                 updatePortColor(port, 15.4);
+                port.dataset.initialSequence = 'orange-gray-blue';
+            } else {
+                port.dataset.initialSequence = 'gray-orange-blue';
             }
 
             port.addEventListener('click', togglePortPower);
@@ -187,7 +190,8 @@
         function togglePortPower(event) {
             const port = event.target;
             const index = parseInt(port.dataset.index);
-            const powerSequence = index <= 24 ? [15.4, 0, 30] : [0, 15.4, 30];
+            const sequenceKey = port.dataset.initialSequence;
+            const powerSequence = sequenceKey === 'orange-gray-blue' ? [15.4, 0, 30] : [0, 15.4, 30];
             let currentPower = parseFloat(port.dataset.power);
             let nextPower = powerSequence[(powerSequence.indexOf(currentPower) + 1) % powerSequence.length];
 
@@ -203,8 +207,12 @@
             errorMessage.textContent = '';
             totalPower = totalPower - currentPower + nextPower;
             port.dataset.power = nextPower;
-            updatePortColor(port, nextPower);
+            
+            if (currentPower === 15.4 && index <= 24) {
+                port.dataset.initialSequence = 'gray-orange-blue';
+            }
 
+            updatePortColor(port, nextPower);
             document.querySelectorAll('.port.disabled').forEach(disabledPort => {
                 const disabledPower = parseFloat(disabledPort.dataset.power);
                 if (totalPower - disabledPower + POWER_VALUES[(POWER_VALUES.indexOf(disabledPower) + 1) % POWER_VALUES.length] <= MAX_POWER) {
